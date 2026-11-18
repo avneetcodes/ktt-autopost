@@ -29,6 +29,7 @@ jobs:
       - name: Publish the next carousel
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: "17841413732610944"   # @keep.the.thoughts
         run: python autopost.py next ${{ inputs.dry_run && '--dry-run' || '' }}
       - name: Record what was posted
         if: ${{ !inputs.dry_run }}

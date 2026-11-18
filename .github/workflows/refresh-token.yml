@@ -1,7 +1,8 @@
 name: Refresh Instagram token
 
-# Long-lived Instagram tokens last 60 days. This renews it every week and saves it
-# back to the IG_ACCESS_TOKEN secret, so posting never stops.
+# Instagram-login tokens (starting "IG") last 60 days. This renews one every week and
+# saves it back to the IG_ACCESS_TOKEN secret. Business tokens (starting "EAA") never
+# expire, and the job simply skips. Needs a GH_PAT secret only for "IG" tokens.
 on:
   schedule:
     - cron: "0 3 * * 0"   # Sundays 03:00 UTC
@@ -21,6 +22,8 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
+          case "$IG_ACCESS_TOKEN" in IG*) ;; *) echo "Token never expires; nothing to refresh."; exit 0;; esac
+          if [ -z "$GH_TOKEN" ]; then echo "Add a GH_PAT secret to enable automatic renewal."; exit 1; fi
           NEW=$(python autopost.py refresh-token)
           echo "::add-mask::$NEW"
           gh secret set IG_ACCESS_TOKEN --body "$NEW" --repo "$GITHUB_REPOSITORY"
