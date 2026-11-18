@@ -1,0 +1,39 @@
+name: Post next carousel
+
+on:
+  schedule:
+    - cron: "30 13 * * 1,3,5"   # Mon, Wed, Fri at 7:00 PM IST (13:30 UTC)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (print the API calls, post nothing)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autopost
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Publish the next carousel
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: python autopost.py next ${{ inputs.dry_run && '--dry-run' || '' }}
+      - name: Record what was posted
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name "ktt-autopost"
+          git config user.email "actions@users.noreply.github.com"
+          git add posted.json
+          git diff --cached --quiet || (git commit -m "Posted $(date -u +%F)" && git push)
