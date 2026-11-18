@@ -22,7 +22,16 @@ ROOT = Path(__file__).resolve().parent
 POSTS = ROOT / "posts"
 STATE = ROOT / "posted.json"
 API_VERSION = os.environ.get("IG_API_VERSION", "v26.0")
-GRAPH = f"https://graph.instagram.com/{API_VERSION}"
+
+
+def graph():
+    """Instagram-login tokens (IG...) use graph.instagram.com; Meta business / system-user
+    tokens (EAA...) use graph.facebook.com. IG_GRAPH_HOST overrides the guess."""
+    host = os.environ.get("IG_GRAPH_HOST")
+    if not host:
+        t = os.environ.get("IG_ACCESS_TOKEN", "")
+        host = "graph.facebook.com" if t.startswith("EAA") else "graph.instagram.com"
+    return f"https://{host}/{API_VERSION}"
 
 
 def load_env():
@@ -55,7 +64,7 @@ def image_base_url():
 
 def api(method, path, dry=False, **params):
     import requests
-    url = path if path.startswith("http") else f"{GRAPH}/{path}"
+    url = path if path.startswith("http") else f"{graph()}/{path}"
     if dry:
         shown = {k: v for k, v in params.items()}
         print(f"  [dry-run] {method} {url} {json.dumps(shown)}")
@@ -74,8 +83,13 @@ def api(method, path, dry=False, **params):
 
 
 def account(dry=False):
+    """The Instagram account to publish to. IG_USER_ID is required for business tokens (EAA...)."""
+    ig_id = os.environ.get("IG_USER_ID")
     if dry:
-        return {"user_id": "DRY_IG_ID", "username": "keep.the.thoughts"}
+        return {"user_id": ig_id or "DRY_IG_ID", "username": "keep.the.thoughts"}
+    if ig_id:
+        info = api("GET", ig_id, fields="username")
+        return {"user_id": ig_id, "username": info.get("username")}
     return api("GET", "me", fields="user_id,username")
 
 
@@ -168,6 +182,9 @@ def cmd_check():
 
 
 def cmd_refresh():
+    if not token().startswith("IG"):
+        print("This token type does not expire; nothing to refresh.", file=sys.stderr)
+        sys.exit(3)
     body = api("GET", "https://graph.instagram.com/refresh_access_token",
                grant_type="ig_refresh_token", access_token=token())
     print(body["access_token"])
